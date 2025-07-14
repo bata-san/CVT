@@ -1,0 +1,67 @@
+name: Flexible File Converter Workflow
+
+on:
+  repository_dispatch:
+    types: [file-convert-request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Download video file
+        run: curl -L -o input_file "${{ github.event.client_payload.download_url }}"
+
+      - name: Convert video with dynamic options
+        id: convert
+        run: |
+          # PHPから渡された値を変数に格納（デフォルト値も設定）
+          FORMAT="${{ github.event.client_payload.format || 'mp4' }}"
+          VCODEC="${{ github.event.client_payload.vcodec || 'libx264' }}"
+          ACODEC="${{ github.event.client_payload.acodec || 'aac' }}"
+          RESOLUTION="${{ github.event.client_payload.resolution || '' }}"
+
+          original_filename="${{ github.event.client_payload.original_filename }}"
+          filename_no_ext="${original_filename%.*}"
+          output_filename="converted_${filename_no_ext}.${FORMAT}"
+          
+          # FFmpegコマンドを組み立てる
+          FFMPEG_CMD="ffmpeg -i input_file"
+
+          # 映像コーデックのオプションを追加
+          if [ "$VCODEC" != "none" ] && [ "$VCODEC" != "copy" ]; then
+            FFMPEG_CMD="$FFMPEG_CMD -c:v $VCODEC"
+          elif [ "$VCODEC" == "copy" ]; then
+            FFMPEG_CMD="$FFMPEG_CMD -c:v copy"
+          else # none or empty
+            FFMPEG_CMD="$FFMPEG_CMD -vn" # 映像なし
+          fi
+          
+          # 音声コーデックのオプションを追加
+          if [ "$ACODEC" != "none" ] && [ "$ACODEC" != "copy" ]; then
+            FFMPEG_CMD="$FFMPEG_CMD -c:a $ACODEC"
+          elif [ "$ACODEC" == "copy" ]; then
+            FFMPEG_CMD="$FFMPEG_CMD -c:a copy"
+          else # none or empty
+            FFMPEG_CMD="$FFMPEG_CMD -an" # 音声なし
+          fi
+          
+          # 解像度のオプションを追加（指定がある場合のみ）
+          if [ -n "$RESOLUTION" ]; then
+            FFMPEG_CMD="$FFMPEG_CMD -vf scale=-2:$RESOLUTION"
+          fi
+          
+          FFMPEG_CMD="$FFMPEG_CMD -y $output_filename" # -yで上書きを許可
+          
+          echo "Executing: $FFMPEG_CMD"
+          $FFMPEG_CMD
+
+          echo "output_filename=$output_filename" >> $GITHUB_OUTPUT
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: converted-${{ github.event.client_payload.original_filename }}
+          path: ${{ steps.convert.outputs.output_filename }}
