@@ -1,0 +1,29 @@
+name: YouTube Downloader Workflow
+
+on:
+  repository_dispatch:
+    types: [youtube-download-request] # この依頼名で起動
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Python, yt-dlp, and ffmpeg
+        run: |
+          sudo apt-get update && sudo apt-get install -y python3-pip ffmpeg
+          sudo python3 -m pip install -U yt-dlp
+
+      - name: Download video or playlist
+        id: download
+        run: |
+          YOUTUBE_URL="${{ github.event.client_payload.youtube_url }}"
+          mkdir -p downloaded_videos
+          yt-dlp -P "downloaded_videos" -o "%(playlist_index)s - %(title)s.%(ext)s" --embed-thumbnail --format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --playlist-items 1-20 "$YOUTUBE_URL"
+          ARTIFACT_NAME=$(echo "$YOUTUBE_URL" | sed 's/[^a-zA-Z0-9]/-/g' | cut -c 25-75)
+          echo "artifact_name=yt-${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
+
+      - name: Upload result as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.download.outputs.artifact_name }}
+          path: downloaded_videos/
