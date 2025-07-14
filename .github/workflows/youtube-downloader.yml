@@ -1,8 +1,10 @@
+# .github/workflows/youtube-downloader.yml
+
 name: YouTube Downloader Workflow
 
 on:
   repository_dispatch:
-    types: [youtube-download-request] # この依頼名で起動
+    types: [youtube-download-request]
 
 jobs:
   download:
@@ -18,7 +20,15 @@ jobs:
         run: |
           YOUTUBE_URL="${{ github.event.client_payload.youtube_url }}"
           mkdir -p downloaded_videos
-          yt-dlp -P "downloaded_videos" -o "%(playlist_index)s - %(title)s.%(ext)s" --embed-thumbnail --format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" --playlist-items 1-20 "$YOUTUBE_URL"
+          
+          # 安全装置として再生リストは20件までに制限
+          yt-dlp -P "downloaded_videos" \
+                 -o "%(playlist_index)s - %(title)s.%(ext)s" \
+                 --embed-thumbnail \
+                 --format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+                 --playlist-items 1-20 \
+                 "$YOUTUBE_URL"
+
           ARTIFACT_NAME=$(echo "$YOUTUBE_URL" | sed 's/[^a-zA-Z0-9]/-/g' | cut -c 25-75)
           echo "artifact_name=yt-${ARTIFACT_NAME}" >> $GITHUB_OUTPUT
 
