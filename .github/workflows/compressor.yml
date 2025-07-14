@@ -1,0 +1,49 @@
+name: Video Compression Workflow
+
+# このワークフローがAPI経由で外部から起動されるようにする設定
+on:
+  repository_dispatch:
+    types: [compress-video-request]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # 実行マシンは最新のUbuntu
+
+    steps:
+      # ステップ1: ログを見やすくするために実行コマンドを表示
+      - name: Show trigger payload
+        run: echo "${{ github.event.client_payload.message }}"
+
+      # ステップ2: 必要なツール（FFmpeg）をインストール
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      # ステップ3: PHPから渡されたURLを使って動画をダウンロード
+      - name: Download video file
+        run: |
+          echo "Downloading from ${{ github.event.client_payload.download_url }}"
+          # input_video という名前でダウンロードする
+          curl -L -o input_video "${{ github.event.client_payload.download_url }}"
+          echo "Download complete."
+
+      # ステップ4: FFmpegで動画を圧縮
+      - name: Compress video
+        id: compress
+        run: |
+          # 元のファイル名から拡張子を除いた部分を取得
+          original_filename="${{ github.event.client_payload.original_filename }}"
+          filename_no_ext="${original_filename%.*}"
+          # 新しいファイル名を生成
+          output_filename="compressed_${filename_no_ext}.mp4"
+          echo "Compressing video..."
+          ffmpeg -i input_video -c:v libx264 -crf 28 -c:a aac -b:a 128k "$output_filename"
+          echo "Compression complete."
+          # 次のステップで使えるようにファイル名を保存
+          echo "output_filename=$output_filename" >> $GITHUB_OUTPUT
+
+      # ステップ5: 圧縮したファイルをArtifactsとしてアップロード
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: compressed-video # Artifactsのフォルダ名
+          path: ${{ steps.compress.outputs.output_filename }} # 圧縮されたファイルのパス
