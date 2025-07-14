@@ -1,3 +1,5 @@
+# .github/workflows/file-converter.yml
+
 name: Flexible File Converter Workflow
 
 on:
@@ -53,10 +55,10 @@ jobs:
             FFMPEG_CMD="$FFMPEG_CMD -vf scale=-2:$RESOLUTION"
           fi
           
-          FFMPEG_CMD="$FFMPEG_CMD -y $output_filename" # -yで上書きを許可
+          FFMPEG_CMD="$FFMPEG_CMD -y \"$output_filename\"" # -yで上書きを許可, ファイル名を引用符で囲む
           
           echo "Executing: $FFMPEG_CMD"
-          $FFMPEG_CMD
+          eval $FFMPEG_CMD
 
           echo "output_filename=$output_filename" >> $GITHUB_OUTPUT
 
